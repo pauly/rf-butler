@@ -17,6 +17,8 @@
 #include <Ethernet.h>
 // put your twitter.com credentials in Tweet.h - copy Tweet.h.sample - optional and experimental!
 #include "Tweet.h"
+// put your lightwaverf api host details here
+#include "LightwaveRFAPI.h"
 
 EthernetClient client; // to make outbound connections
 byte mac[] = { 0x64, 0xA7, 0x69, 0x0D, 0x21, 0x21 }; // mac address of this arduino
@@ -24,8 +26,8 @@ byte len = 10;
 byte lastCommand[10];
 
 void setup ( ) {
-  // Ethernet.begin( mac ); // dhcp
-  // delay( 1000 );
+  Ethernet.begin( mac ); // dhcp
+  delay( 1000 );
   lwrx_setup( 2 );  // set up with rx into pin 2
   Serial.begin( 9600 );
   Serial.println( "Set up completed" );
@@ -44,6 +46,43 @@ void log ( byte *msg, byte len ) {
     // Serial.println( "msg + lastCommand were the same" );
     return;
   }
+
+  // @todo refactor, repeating myself here
+  if ( client.connect( apiHost, 80 )) {
+    for ( int i = 0; i < len; ++i ) {
+      lastCommand[i] = msg[i];
+    }
+    delay( 100 );
+    client.flush( );
+    client.print( "POST " );
+    client.print( apiPath );
+    client.print( "?_=" );
+    client.print( millis( ));
+    client.println( " HTTP/1.1" );
+    
+    char data[128];
+    data[0] = 0;
+    strcat( data, "title=" );
+    strcat( data, device( msg ));
+    strcat( data, "&text=" );
+    strcat( data, command( msg ));
+    Serial.println( data );
+    
+    client.print( "Host: " );
+    client.println( apiHost );
+    client.println( "User-Agent: Arduino/1.0" );
+    client.println( "Content-Type: application/x-www-form-urlencoded" );
+    client.print( "Content-length: " );
+    client.println( strlen( data ));
+    client.println( "Connection: close" );
+    client.println( );
+    client.println( data );
+    client.stop( );
+  }
+  else {
+    Serial.println( "failed to connect" );
+  }
+
   if ( client.connect( tweetHost, 80 )) {
     for ( int i = 0; i < len; ++i ) {
       lastCommand[i] = msg[i];
