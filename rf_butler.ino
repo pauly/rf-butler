@@ -4,7 +4,7 @@
  * 
  * Arduino home automation experiments. Hardware:
  *  Arduino http://amzn.to/UCKWsq
- *  Ethernet shield
+ *  Ethernet shield http://amzn.to/1akfeTY
  *  LightwaveRF kit: http://amzn.to/RkukDo and http://amzn.to/V7yPPK
  *  RF transmitter and receiver http://bit.ly/HhltyI
  * 
@@ -18,7 +18,7 @@
 // put your twitter.com credentials in Tweet.h - copy Tweet.h.sample - optional and experimental!
 #include "Tweet.h"
 // put your lightwaverf api host details here
-#include "LightwaveRFAPI.h"
+#include "LWRFAPI.h"
 
 EthernetClient client; // to make outbound connections
 byte mac[] = { 0x64, 0xA7, 0x69, 0x0D, 0x21, 0x21 }; // mac address of this arduino
@@ -41,86 +41,62 @@ void loop ( ) {
   }
 }
 
+void post ( char *host, char *path, char *data ) {
+  Serial.println( data );  
+  if ( client.connect( host, 80 )) {
+    delay( 100 );
+    client.flush( );
+    client.print( "POST " );
+    client.print( path );
+    client.print( "?_=" );
+    client.print( millis( ));
+    client.println( " HTTP/1.1" );
+    client.print( "Host: " );
+    client.println( host );
+    client.println( "User-Agent: Arduino/1.0" );
+    client.println( "Content-Type: application/x-www-form-urlencoded" );
+    client.print( "Content-length: " );
+    client.println( strlen( data ));
+    client.println( "Connection: close" );
+    client.println( );
+    client.println( data );
+    client.stop( );
+  }
+  else {
+    Serial.print( "failed to connect to " );
+    Serial.println( host );
+  }
+}
+
 void log ( byte *msg, byte len ) {
   if ( compare( msg, lastCommand, 0, len )) {
     // Serial.println( "msg + lastCommand were the same" );
     return;
   }
-
-  // @todo refactor, repeating myself here
-  if ( client.connect( apiHost, 80 )) {
-    for ( int i = 0; i < len; ++i ) {
-      lastCommand[i] = msg[i];
-    }
-    delay( 100 );
-    client.flush( );
-    client.print( "POST " );
-    client.print( apiPath );
-    client.print( "?_=" );
-    client.print( millis( ));
-    client.println( " HTTP/1.1" );
-    
-    char data[128];
-    data[0] = 0;
-    strcat( data, "title=" );
-    strcat( data, device( msg ));
-    strcat( data, "&text=" );
-    strcat( data, command( msg ));
-    Serial.println( data );
-    
-    client.print( "Host: " );
-    client.println( apiHost );
-    client.println( "User-Agent: Arduino/1.0" );
-    client.println( "Content-Type: application/x-www-form-urlencoded" );
-    client.print( "Content-length: " );
-    client.println( strlen( data ));
-    client.println( "Connection: close" );
-    client.println( );
-    client.println( data );
-    client.stop( );
+  for ( int i = 0; i < len; ++i ) {
+    lastCommand[i] = msg[i];
   }
-  else {
-    Serial.println( "failed to connect" );
-  }
-
-  if ( client.connect( tweetHost, 80 )) {
-    for ( int i = 0; i < len; ++i ) {
-      lastCommand[i] = msg[i];
-    }
-    delay( 100 );
-    client.flush( );
-    client.print( "POST " );
-    client.print( tweetPath );
-    client.print( "?_=" );
-    client.print( millis( ));
-    client.println( " HTTP/1.1" );
     
-    char data[128];
-    data[0] = 0;
-    strcat( data, "t=" );
-    strcat( data, device( msg ));
-    strcat( data, "+sent+" );
-    strcat( data, command( msg ));
-    strcat( data, "&c=" );
-    strcat( data, consumer_secret );
-    strcat( data, "&a=" );
-    strcat( data, access_token_secret );
-    Serial.println( data );
-    
-    client.print( "Host: " );
-    client.println( tweetHost );
-    client.println( "User-Agent: Arduino/1.0" );
-    client.println( "Content-Type: application/x-www-form-urlencoded" );
-    client.print( "Content-length: " );
-    client.println( strlen( data ));
-    client.println( "Connection: close" );
-    client.println( );
-    client.println( data );
-    client.stop( );
-  }
-  else {
-    Serial.println( "failed to connect" );
-  }
+  char data[128];
+  data[0] = 0;
+  strcat( data, "title=" );
+  strcat( data, device( msg ));
+  strcat( data, "&text=" );
+  strcat( data, command( msg ));
+  strcat( data, "&key=" );
+  strcat( data, apiKey );
+  post( apiHost, apiPath, data );
+  
+  data[0] = 0;
+  strcat( data, "t=" );
+  strcat( data, device( msg ));
+  strcat( data, "+sent+" );
+  strcat( data, command( msg ));
+  strcat( data, "&c=" );
+  strcat( data, consumer_secret );
+  strcat( data, "&a=" );
+  strcat( data, access_token_secret );
+  post( tweetHost, tweetPath, data );
 }
 
 /**
