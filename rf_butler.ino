@@ -92,6 +92,8 @@ void log ( byte *msg, byte len ) {
   strcat( data, device( msg ));
   strcat( data, "+sent+" );
   strcat( data, command( msg ));
+  strcat( data, "+" );
+  strcat( data, "https://github.com/pauly/rf-butler" );
   strcat( data, "&c=" );
   strcat( data, consumer_secret );
   strcat( data, "&a=" );
