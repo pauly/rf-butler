@@ -19,11 +19,17 @@
 #include "Tweet.h"
 // put your lightwaverf api host details here
 #include "LWRFAPI.h"
+#define TIME_BETWEEN_NAGS 60
 
 EthernetClient client; // to make outbound connections
 byte mac[] = { 0x64, 0xA7, 0x69, 0x0D, 0x21, 0x21 }; // mac address of this arduino
 byte len = 10;
 byte lastCommand[10];
+
+int airQualityPin = A0; // input pin for the air quality
+int smell = 0;  // air quality value
+long transmitTimeout = 0;
+unsigned long lastAlerted = 0;
 
 void setup ( ) {
   Ethernet.begin( mac ); // dhcp
@@ -38,6 +44,34 @@ void loop ( ) {
     byte msg[ len ];
     lwrx_getmessage( msg, &len );
     log( msg, len );
+  }
+  sniff( );
+}
+
+/**
+ * Check the air quality
+ */
+void sniff ( ) {
+  smell = analogRead( airQualityPin );
+  if ( smell > 400 ) {
+    Serial.print( "air: " );
+    Serial.println( smell );
+
+    if (( lastAlerted == 0 ) || (( millis( ) - lastAlerted ) / 1000 > TIME_BETWEEN_NAGS )) {
+      char data[128];
+      data[0] = 0;
+      strcat( data, "t=something+smells!+air+quality+" );
+      char ss[4] = "";
+      itoa( smell, ss, 10 );
+      strcat( data, ss );
+      strcat( data, "&c=" );
+      strcat( data, consumer_secret );
+      strcat( data, "&a=" );
+      strcat( data, access_token_secret );
+      post( tweetHost, tweetPath, data );
+      lastAlerted = millis( ); 
+    }    
+    delay( 1000 );
   }
 }
 
@@ -133,7 +167,7 @@ char * command ( byte *msg ) {
   c[4] = msg[3] ? '\0' : 'f';
   c[5] = '\0';
   return c; */
-  return tos( msg, 0, 5 );
+  return tos( msg, 0, 4 );
 }
 
 /**
@@ -144,7 +178,7 @@ char * device ( byte *msg ) {
   if ( compare( msg, b, 5, 10 )) {
     return "remote b";
   }
-  return tos( msg, 5, 10 );
+  return tos( msg, 4, 9 );
 }
 
 /**
