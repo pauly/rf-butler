@@ -7,6 +7,7 @@
  *  Ethernet shield http://amzn.to/1akfeTY
  *  LightwaveRF kit: http://amzn.to/RkukDo and http://amzn.to/V7yPPK
  *  RF transmitter and receiver http://bit.ly/HhltyI
+ *  Air quality meter from coolcomponents.co.uk
  * 
  * @author PC <paul.clarke+paulclarke@holidayextras.com>
  * @date    Wed 23 Oct 2013 20:57:15 BST
