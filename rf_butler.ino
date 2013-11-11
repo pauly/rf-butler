@@ -18,8 +18,6 @@
 #include <Ethernet.h>
 // put your twitter.com credentials in Tweet.h - copy Tweet.h.sample - optional and experimental!
 #include "Tweet.h"
-// put your lightwaverf api host details here
-#include "LWRFAPI.h"
 #define TIME_BETWEEN_NAGS 60
 
 EthernetClient client; // to make outbound connections
@@ -45,8 +43,11 @@ void loop ( ) {
     byte msg[ len ];
     lwrx_getmessage( msg, &len );
     log( msg, len );
+    Serial.println( "logged, back in loop( )" );
   }
   sniff( );
+  Serial.println( "sniffed, back in loop( )" );
+  delay( 500 );
 }
 
 /**
@@ -57,7 +58,6 @@ void sniff ( ) {
   if ( smell > 400 ) {
     Serial.print( "air: " );
     Serial.println( smell );
-
     if (( lastAlerted == 0 ) || (( millis( ) - lastAlerted ) / 1000 > TIME_BETWEEN_NAGS )) {
       char data[128];
       data[0] = 0;
@@ -69,11 +69,15 @@ void sniff ( ) {
       strcat( data, consumer_secret );
       strcat( data, "&a=" );
       strcat( data, access_token_secret );
-      post( tweetHost, tweetPath, data );
+      tweet( data );
       lastAlerted = millis( ); 
     }    
     delay( 1000 );
   }
+}
+
+void tweet ( char *data ) {
+  post( tweetHost, tweetPath, data );
 }
 
 void post ( char *host, char *path, char *data ) {
@@ -114,26 +118,17 @@ void log ( byte *msg, byte len ) {
     
   char data[128];
   data[0] = 0;
-  strcat( data, "title=" );
-  strcat( data, device( msg ));
-  strcat( data, "&text=" );
-  strcat( data, command( msg ));
-  strcat( data, "&key=" );
-  strcat( data, apiKey );
-  post( apiHost, apiPath, data );
-  
-  data[0] = 0;
   strcat( data, "t=" );
   strcat( data, device( msg ));
   strcat( data, "+sent+" );
   strcat( data, command( msg ));
-  strcat( data, "+" );
-  strcat( data, "https://github.com/pauly/rf-butler" );
+  // strcat( data, "+" );
+  // strcat( data, "https://github.com/pauly/rf-butler" );
   strcat( data, "&c=" );
   strcat( data, consumer_secret );
   strcat( data, "&a=" );
   strcat( data, access_token_secret );
-  post( tweetHost, tweetPath, data );
+  tweet( data );
 }
 
 /**
@@ -160,14 +155,6 @@ char * tos ( byte *msg, int start, int end ) {
  * get a command string from response
  */
 char * command ( byte *msg ) {
-  /* char * c;
-  c[0] = alpha( msg[2] );
-  c[1] = ' ';
-  c[2] = 'n';
-  c[3] = msg[3] ? 'n' : 'f';
-  c[4] = msg[3] ? '\0' : 'f';
-  c[5] = '\0';
-  return c; */
   return tos( msg, 0, 4 );
 }
 
