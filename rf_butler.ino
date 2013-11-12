@@ -14,10 +14,13 @@
  */
 
 #include <LwRx.h>
+#include <LwTx.h>
 #include <SPI.h>
 #include <Ethernet.h>
 // put your twitter.com credentials in Tweet.h - copy Tweet.h.sample - optional and experimental!
 #include "Tweet.h"
+// put your lightwaverf api host details here
+#include "LWRFAPI.h"
 #define TIME_BETWEEN_NAGS 60
 
 EthernetClient client; // to make outbound connections
@@ -34,8 +37,9 @@ void setup ( ) {
   Ethernet.begin( mac ); // dhcp
   delay( 1000 );
   lwrx_setup( 2 );  // set up with rx into pin 2
+  lwtx_setup( 3, 10 ); // transmit on pin 3, 10 repeats
   Serial.begin( 9600 );
-  Serial.println( "Set up completed" );
+  // Serial.println( F( "Set up completed" ));
 }
 
 void loop ( ) {
@@ -43,10 +47,8 @@ void loop ( ) {
     byte msg[ len ];
     lwrx_getmessage( msg, &len );
     log( msg, len );
-    Serial.println( "logged, back in loop( )" );
   }
   sniff( );
-  Serial.println( "sniffed, back in loop( )" );
   delay( 500 );
 }
 
@@ -55,10 +57,11 @@ void loop ( ) {
  */
 void sniff ( ) {
   smell = analogRead( airQualityPin );
-  if ( smell > 400 ) {
-    Serial.print( "air: " );
+  if ( smell > 500 ) {
+    Serial.print( F( "air: " ));
     Serial.println( smell );
     if (( lastAlerted == 0 ) || (( millis( ) - lastAlerted ) / 1000 > TIME_BETWEEN_NAGS )) {
+      lastAlerted = millis( ); 
       char data[128];
       data[0] = 0;
       strcat( data, "t=something+smells!+air+quality+" );
@@ -70,7 +73,30 @@ void sniff ( ) {
       strcat( data, "&a=" );
       strcat( data, access_token_secret );
       tweet( data );
-      lastAlerted = millis( ); 
+
+      /* data[0] = 0; // sinatra doesn't recognise this post so don't bother
+        strcat( data, "title=" );
+        strcat( data, device( msg ));
+        strcat( data, "&text=" );
+        strcat( data, command( msg ));
+        // strcat( data, "&key=" );
+        // strcat( data, apiKey );
+        post( apiHost, apiPath, data ); */
+
+      if ( lwtx_free( )) {
+        // message to turn the lights on or something
+        byte msg[] = { 0x00, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x0D, 0x0C, 0x02, 0x08 };
+        lwtx_send( msg );
+        transmitTimeout = millis( );
+      }
+      while ( ! lwtx_free( ) && millis( ) < ( transmitTimeout + 1000 )) {
+        delay( 10 );
+      }
+      transmitTimeout = millis( ) - transmitTimeout;
+      Serial.print( millis( ));
+      Serial.print( F( " msg sent:" ));
+      Serial.println( transmitTimeout );
+
     }    
     delay( 1000 );
   }
@@ -85,31 +111,33 @@ void post ( char *host, char *path, char *data ) {
   if ( client.connect( host, 80 )) {
     delay( 100 );
     client.flush( );
-    client.print( "POST " );
+    client.print( F( "POST " ));
     client.print( path );
-    client.print( "?_=" );
+    client.print( F( "?_=" ));
     client.print( millis( ));
-    client.println( " HTTP/1.1" );
-    client.print( "Host: " );
+    client.println( F( " HTTP/1.1" ));
+    client.print( F( "Host: " ));
     client.println( host );
-    client.println( "User-Agent: Arduino/1.0" );
-    client.println( "Content-Type: application/x-www-form-urlencoded" );
-    client.print( "Content-length: " );
+    client.println( F( "User-Agent: Arduino/1.0" ));
+    client.println( F( "Content-Type: application/x-www-form-urlencoded" ));
+    client.print( F( "Content-length: " ));
     client.println( strlen( data ));
-    client.println( "Connection: close" );
+    client.println( F( "Connection: close" ));
     client.println( );
     client.println( data );
     client.stop( );
   }
   else {
-    Serial.print( "failed to connect to " );
+    Serial.print( F( "failed to connect to " ));
     Serial.println( host );
   }
+  Serial.print( F( "free memory " ));
+  Serial.println( freeRam( ));
 }
 
 void log ( byte *msg, byte len ) {
   if ( compare( msg, lastCommand, 0, len )) {
-    // Serial.println( "msg + lastCommand were the same" );
+    // Serial.println( F( "msg + lastCommand were the same" ));
     return;
   }
   for ( int i = 0; i < len; ++i ) {
@@ -122,8 +150,8 @@ void log ( byte *msg, byte len ) {
   strcat( data, device( msg ));
   strcat( data, "+sent+" );
   strcat( data, command( msg ));
-  // strcat( data, "+" );
-  // strcat( data, "https://github.com/pauly/rf-butler" );
+  // strcat( data, F( "+" ));
+  // strcat( data, F( "https://github.com/pauly/rf-butler" ));
   strcat( data, "&c=" );
   strcat( data, consumer_secret );
   strcat( data, "&a=" );
@@ -135,13 +163,13 @@ void log ( byte *msg, byte len ) {
  * get a useful string out of an array of bytes
  */
 char * tos ( byte *msg, int start, int end ) {
-  // Serial.print( "From " );
+  // Serial.print( F( "From " ));
   // Serial.print( start );
-  // Serial.print( " to " );
+  // Serial.print( F( " to " ));
   // Serial.print( end );
-  // Serial.print( "=" );
+  // Serial.print( F( "=" ));
   char * name = "";
-  // name[0] = 0;
+  name[0] = 0;
   int index = 0;
   for ( int i = start; i < end; i ++ ) {
     name[index++] = alpha( msg[i] );
@@ -159,13 +187,39 @@ char * command ( byte *msg ) {
 }
 
 /**
+  From ScubyD at http://lightwaverfcommunity.org.uk/forums/topic/arduino-433-and-868mhz-library-via-rf-not-udp/page/2/
+
+  Level      2 bit     Device setting
+  Device     1 bit     Device ID, relative to room and remote
+  Command    1 bit     On/Off/Mood
+  Remote ID  5 bit     Remote ID
+  Room       1 bit     Room ID, relative to device and remote
+
+  Function          Room  Device  Command Dec Level Hex Level
+  Simple On         #     #       1       0         00
+  Simple Off        #     #       0       64        40
+  Dimmer On         #     #       1       31        1F
+  Dimmer 100% (Max) #     #       1       159       9F
+  Dimmer 75%        #     #       1       151       97
+  Dimmer 50%        #     #       1       143       8F
+  Dimmer 25%        #     #       1       135       87
+  Dimmer 10%        #     #       1       130       82
+  Dimmer 5% (Min)   #     #       1       129       81
+  Dimmer Range      #     #       1       129-159   81-9F
+  All On (Via Mood) #     F       2       128-132   80-84
+  All Off           #     F       0       192       C0
+  All Off           #     0       0       192       C0
+  Mood              #     F       2       128-132   80-84
+*/
+
+/**
  * get device name from response
  */
 char * device ( byte *msg ) {
-  byte b[6] = { 0x00, 0x0D, 0x0C, 0x02, 0x08 };
-  if ( compare( msg, b, 5, 10 )) {
-    return "remote b";
-  }
+  // byte b[6] = { 0x00, 0x0D, 0x0C, 0x02, 0x08 };
+  // if ( compare( msg, b, 5, 10 )) {
+  //   return "remote b";
+  // }
   return tos( msg, 4, 9 );
 }
 
@@ -173,7 +227,7 @@ char * device ( byte *msg ) {
  * turn a hex value into char for display, like sprintf
  */
 char alpha ( byte a ) {
-  return (char)( a < 10 ? a + 48 : a + 55 );
+  return ( char )( a < 10 ? a + 48 : a + 55 );
 }
 
 boolean compare ( byte a[], byte b[], int start, int end ) {
@@ -183,3 +237,11 @@ boolean compare ( byte a[], byte b[], int start, int end ) {
   return true;
 }
 
+/**
+ * From http://playground.arduino.cc/Code/AvailableMemory
+ */
+int freeRam ( ) {
+  extern int __heap_start, *__brkval; 
+  int v; 
+  return (int) &v - ( __brkval == 0 ? (int) &__heap_start : (int) __brkval ); 
+}
