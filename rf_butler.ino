@@ -28,18 +28,26 @@ byte mac[] = { 0x64, 0xA7, 0x69, 0x0D, 0x21, 0x21 }; // mac address of this ardu
 byte len = 10;
 byte lastCommand[10];
 
-int airQualityPin = A0; // input pin for the air quality
+#define AIRQUALITYPIN A0
+
 int smell = 0;  // air quality value
 long transmitTimeout = 0;
 unsigned long lastAlerted = 0;
 
 void setup ( ) {
-  Ethernet.begin( mac ); // dhcp
-  delay( 1000 );
+  Serial.begin( 115200 );
+  if ( Ethernet.begin( mac )) {
+    Serial.print( F( "DHCP: " ));
+    Ethernet.localIP( ).printTo( Serial );
+    Serial.println( "" );
+  }
+  else {
+    Serial.println( F( "DHCP configuration failed" ));
+  }
+  delay( 500 );
   lwrx_setup( 2 );  // set up with rx into pin 2
-  lwtx_setup( 3, 10 ); // transmit on pin 3, 10 repeats
-  Serial.begin( 9600 );
-  // Serial.println( F( "Set up completed" ));
+  lwtx_setup( 3, 10 ); // transmit on pin 3, 10 repeats. transmitter is the small one! http://www.coolcomponents.co.uk/catalogsearch/result/?q=434mhz+transmitter
+  Serial.println( F( "Set up completed" ));
 }
 
 void loop ( ) {
@@ -56,8 +64,8 @@ void loop ( ) {
  * Check the air quality
  */
 void sniff ( ) {
-  smell = analogRead( airQualityPin );
-  if ( smell > 500 ) {
+  smell = analogRead( AIRQUALITYPIN );
+  if ( smell > 600 ) {
     Serial.print( F( "air: " ));
     Serial.println( smell );
     if (( lastAlerted == 0 ) || (( millis( ) - lastAlerted ) / 1000 > TIME_BETWEEN_NAGS )) {
@@ -73,15 +81,6 @@ void sniff ( ) {
       strcat( data, "&a=" );
       strcat( data, access_token_secret );
       tweet( data );
-
-      /* data[0] = 0; // sinatra doesn't recognise this post so don't bother
-        strcat( data, "title=" );
-        strcat( data, device( msg ));
-        strcat( data, "&text=" );
-        strcat( data, command( msg ));
-        // strcat( data, "&key=" );
-        // strcat( data, apiKey );
-        post( apiHost, apiPath, data ); */
 
       if ( lwtx_free( )) {
         // message to turn the lights on or something
@@ -137,37 +136,46 @@ void post ( char *host, char *path, char *data ) {
 
 void log ( byte *msg, byte len ) {
   if ( compare( msg, lastCommand, 0, len )) {
-    // Serial.println( F( "msg + lastCommand were the same" ));
+    Serial.print( F( "msg + lastCommand were the same" ));
     return;
   }
   for ( int i = 0; i < len; ++i ) {
     lastCommand[i] = msg[i];
   }
     
-  char data[128];
-  data[0] = 0;
-  strcat( data, "t=" );
-  strcat( data, device( msg ));
-  strcat( data, "+sent+" );
-  strcat( data, command( msg ));
-  // strcat( data, F( "+" ));
-  // strcat( data, F( "https://github.com/pauly/rf-butler" ));
-  strcat( data, "&c=" );
-  strcat( data, consumer_secret );
-  strcat( data, "&a=" );
-  strcat( data, access_token_secret );
+  char data[140] = "";
+  sprintf(
+    data,
+    "c=%s&a=%s&t=%x%x%x%x%x%x%x%x%x%x+-+%x%x%x%x%x+set+%x%x+%x+(%x%x)&re=%x%x%x%x%x&ta=%x%x&di=%x&an=%x%x",
+    consumer_secret,
+    access_token_secret,
+    msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7], msg[8], msg[9],
+    msg[4], msg[5], msg[6], msg[7], msg[8],
+    msg[9], msg[2],
+    msg[3],
+    msg[0], msg[1],
+    msg[4], msg[5], msg[6], msg[7], msg[8],
+    msg[9], msg[2],
+    msg[3],
+    msg[0], msg[1]
+  );
+  Serial.print( F( "Tweeting: " ));
+  Serial.println( data );
+  Serial.print( freeRam( ));
+  Serial.println( F( " bytes free" ));
+  delay( 500 );
   tweet( data );
 }
 
 /**
  * get a useful string out of an array of bytes
  */
-char * tos ( byte *msg, int start, int end ) {
-  // Serial.print( F( "From " ));
-  // Serial.print( start );
-  // Serial.print( F( " to " ));
-  // Serial.print( end );
-  // Serial.print( F( "=" ));
+char * tos ( byte * msg, int start, int end ) {
+  Serial.print( F( "From " ));
+  Serial.print( start );
+  Serial.print( F( " to " ));
+  Serial.print( end );
+  Serial.print( F( "=" ));
   char * name = "";
   name[0] = 0;
   int index = 0;
@@ -175,19 +183,19 @@ char * tos ( byte *msg, int start, int end ) {
     name[index++] = alpha( msg[i] );
   }
   name[index++] = '\0';
-  // Serial.println( name );
+  Serial.println( name );
   return name;
 }
 
 /**
  * get a command string from response
  */
-char * command ( byte *msg ) {
+char * command ( byte * msg ) {
   return tos( msg, 0, 4 );
 }
 
 /**
-  From ScubyD at http://lightwaverfcommunity.org.uk/forums/topic/arduino-433-and-868mhz-library-via-rf-not-udp/page/2/
+  From ScubyD https://github.com/scubyd/ScubyD-LWRF
 
   Level      2 bit     Device setting
   Device     1 bit     Device ID, relative to room and remote
@@ -215,7 +223,7 @@ char * command ( byte *msg ) {
 /**
  * get device name from response
  */
-char * device ( byte *msg ) {
+char * device ( byte * msg ) {
   // byte b[6] = { 0x00, 0x0D, 0x0C, 0x02, 0x08 };
   // if ( compare( msg, b, 5, 10 )) {
   //   return "remote b";
@@ -232,7 +240,19 @@ char alpha ( byte a ) {
 
 boolean compare ( byte a[], byte b[], int start, int end ) {
   for ( int i = start; i < end; ++ i ) {
-    if ( a[i] != b[i] ) return false;
+    Serial.print( F( "a" ));
+    Serial.print( i );
+    Serial.print( F( "=" ));
+    Serial.print( a[i] );
+    Serial.print( F( "," ));
+    Serial.print( F( "b" ));
+    Serial.print( i - start );
+    Serial.print( F( "=" ));
+    Serial.println( b[i - start] );
+    if ( a[i] != b[i - start] ) {
+      Serial.print( F( ":-(" ));
+      return false;
+    }
   }
   return true;
 }
