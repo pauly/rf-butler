@@ -8,7 +8,7 @@ with an ethernet shield, some LightwaveRF kit: http://amzn.to/RkukDo and
 http://amzn.to/V7yPPK an rf transmitter and receiver http://bit.ly/HhltyI
 and I'm trying to join them together.
 
-So far it's only intercepting the messages sent by the rf transmitters, but soon I'll be sending messages too.
+Now sends rf signals to the switches and sockets, as well as intercepting rf signals sent by the remotes and the wifi link. So can I get rid of the wifi link now..?
 
 With thanks to https://github.com/roberttidey/LightwaveRF and https://github.com/lawrie/LightwaveRF
 
