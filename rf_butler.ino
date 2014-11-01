@@ -9,11 +9,12 @@
  *  RF transmitter and receiver http://bit.ly/HhltyI
  *  Air quality meter from coolcomponents.co.uk
  * 
- * @author PC <paul.clarke+paulclarke@holidayextras.com>
+ * @author PC <pauly@clarkeology.com>
  * @date    Wed 23 Oct 2013 20:57:15 BST
  */
 
 #include <LwRx.h>
+#include <EEPROM.h>
 #include <LwTx.h>
 #include <SPI.h>
 #include <Ethernet.h>
@@ -46,7 +47,7 @@ void setup ( ) {
   }
   delay( 500 );
   lwrx_setup( 2 );  // set up with rx into pin 2
-  lwtx_setup( 3, 10 ); // transmit on pin 3, 10 repeats. transmitter is the small one! http://www.coolcomponents.co.uk/catalogsearch/result/?q=434mhz+transmitter
+  lwtx_setup( 3, 10, 0, 140 ); // transmit on pin 3, 10 repeats. transmitter is the small one! http://www.coolcomponents.co.uk/catalogsearch/result/?q=434mhz+transmitter
   Serial.println( F( "Set up completed" ));
 }
 
@@ -84,7 +85,7 @@ void sniff ( ) {
 
       if ( lwtx_free( )) {
         // message to turn the lights on or something
-        byte msg[] = { 0x00, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x0D, 0x0C, 0x02, 0x08 };
+        byte msg[] = { 0x00, 0x00, 0x02, 0x01, 0x0F, 0x00, 0x0D, 0x0C, 0x02, 0x08 };
         lwtx_send( msg );
         transmitTimeout = millis( );
       }
@@ -240,7 +241,7 @@ char alpha ( byte a ) {
 
 boolean compare ( byte a[], byte b[], int start, int end ) {
   for ( int i = start; i < end; ++ i ) {
-    Serial.print( F( "a" ));
+    /* Serial.print( F( "a" ));
     Serial.print( i );
     Serial.print( F( "=" ));
     Serial.print( a[i] );
@@ -248,7 +249,7 @@ boolean compare ( byte a[], byte b[], int start, int end ) {
     Serial.print( F( "b" ));
     Serial.print( i - start );
     Serial.print( F( "=" ));
-    Serial.println( b[i - start] );
+    Serial.println( b[i - start] ); */
     if ( a[i] != b[i - start] ) {
       Serial.print( F( ":-(" ));
       return false;
